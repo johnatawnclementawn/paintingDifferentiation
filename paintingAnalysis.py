@@ -31,6 +31,18 @@ zsNeigh = 5
 neighborhood = NbrRectangle(zsNeigh, zsNeigh, "CELL")
 
 # Check if output directory exists. Create a directory if one does not exist
+intermediates = path + "\\intermediates.gdb"
+if os.path.exists(intermediates):
+    if os.path.isdir(intermediates):
+        print('The proper intermediates folder exists, moving on')
+    else:
+        arcpy.management.CreateFileGDB(path, "intermediates.gdb")
+        print('Created the intermediates directory')
+else: 
+    arcpy.management.CreateFileGDB(path, "intermediates.gdb")
+    print('Created the intermediates directory')
+
+# Check if output directory exists. Create a directory if one does not exist
 outFolder = path + "\\output.gdb"
 if os.path.exists(outFolder):
     if os.path.isdir(outFolder):
@@ -131,17 +143,17 @@ def tallHills_lowValleys(inPainting, name, neighborhood, oneValPainting):
     print(name + " tall hills and low valleys counted")
     
     # Save intermediates for viewing 
-    oneValPainting.save(outFolder + "\\" + name + r"_oneValue")  
-    smooth.save(outFolder + "\\" + name + r"_smooth")
-    smoother.save(outFolder + "\\" + name + r"_smoother")
-    smoothest.save(outFolder + "\\" + name + r"_smoothest")
-    deviations.save(outFolder + "\\" + name + r"_deviations")
-    tallHills.save(outFolder + "\\" + name + r"_tallHills")
-    lowValleys.save(outFolder + "\\" + name + r"_lowValleys")
-    indvTallHills.save(outFolder + "\\" + name + r"_indvTallHills")
-    indvLowValleys.save(outFolder + "\\" + name + r"_indvLowValleys")
-    numTallHills.save(outFolder + "\\" + name + r"_numTallHills")
-    numLowValleys.save(outFolder + "\\" + name + r"_numLowValleys")
+    oneValPainting.save(intermediates + "\\" + name + r"_oneValue")  
+    smooth.save(intermediates + "\\" + name + r"_smooth")
+    smoother.save(intermediates + "\\" + name + r"_smoother")
+    smoothest.save(intermediates + "\\" + name + r"_smoothest")
+    deviations.save(intermediates + "\\" + name + r"_deviations")
+    tallHills.save(intermediates + "\\" + name + r"_tallHills")
+    lowValleys.save(intermediates + "\\" + name + r"_lowValleys")
+    indvTallHills.save(intermediates + "\\" + name + r"_indvTallHills")
+    indvLowValleys.save(intermediates + "\\" + name + r"_indvLowValleys")
+    numTallHills.save(intermediates + "\\" + name + r"_numTallHills")
+    numLowValleys.save(intermediates + "\\" + name + r"_numLowValleys")
     print(name + " th/lv outputs saved to disk")
     
     # Return objects for later use
@@ -155,22 +167,22 @@ def pctRough(inPainting, name, neighborhood, oneValPainting, areaOVP):
     
     # Calculate the standard deviation (rough)
     rough = FocalStatistics(inPainting, neighborhood, "STD")
-    rough.save(outFolder + "\\" + name + r"_rough")
+    rough.save(intermediates + "\\" + name + r"_rough")
     
     # Reclass upper quantile
     roughQuantiles = reclassify_by_quantiles(rough, 5)
     veryRough = Reclassify(roughQuantiles, "VALUE", "1 NODATA;2 NODATA;3 NODATA;4 NODATA;5 1", "DATA")
-    veryRough.save(outFolder + "\\" + name + r"_veryRough")    
+    veryRough.save(intermediates + "\\" + name + r"_veryRough")    
     
     # Find total area of rough zone
     vRoughArea = ZonalGeometry(veryRough, "VALUE", "AREA")
-    vRoughArea.save(outFolder + "\\" + name + r"_vRoughArea")
+    vRoughArea.save(intermediates + "\\" + name + r"_vRoughArea")
     
     # Calculate area of rough zones as a percentage of total area
     maxRoughArea = ZonalStatistics(oneValPainting, "VALUE", vRoughArea, "MAXIMUM")
     pctRoughArea = RasterCalculator([maxRoughArea, areaOVP], ["x", "y"], "(x/y)*1000")
-    areaOVP.save(outFolder + "\\" + name + r"_areaOVP")
-    pctRoughArea.save(outFolder + "\\" + name + r"_pctRoughArea")
+    areaOVP.save(intermediates + "\\" + name + r"_areaOVP")
+    pctRoughArea.save(intermediates + "\\" + name + r"_pctRoughArea")
     print(name + " pct rough area calculated")
 
     return pctRoughArea
@@ -179,13 +191,14 @@ def pctRough(inPainting, name, neighborhood, oneValPainting, areaOVP):
 
 #########################################################################################################
 # Identify average slope 
-def avgSlope(inPainting, name, oneValPainting):
+def avgSlopeF(inPainting, name, oneValPainting):
     
     # Slope is the 
     slope = Slope(inPainting, "PERCENT_RISE", 1, "PLANAR", "METER")
-    slope.save(outFolder + "\\" + name + r"_slope")
+    slope.save(intermediates + "\\" + name + r"_slope")
     
     avgSlope = ZonalStatistics(oneValPainting, "VALUE", slope, "MEAN")
+    avgSlope.save(intermediates + "\\" + name + r"_avgSlope")
     print(name + " calculated slope")
     
     return avgSlope
@@ -194,13 +207,14 @@ def avgSlope(inPainting, name, oneValPainting):
 
 #########################################################################################################
 # Identify average aspect - direction of downhill slope
-def avgAspect(inPainting, name, oneValPainting):
+def avgAspectF(inPainting, name, oneValPainting):
     
     # Slope is the 
     aspect = Aspect(inPainting, "PLANAR", "METER", "GEODESIC_AZIMUTHS")
-    aspect.save(outFolder + "\\" + name + r"_aspect")
+    aspect.save(intermediates + "\\" + name + r"_aspect")
     
     avgAspect = ZonalStatistics(oneValPainting, "VALUE", aspect, "MEAN")
+    avgAspect.save(intermediates + "\\" + name + r"_avgAspect")
     print(name + " calculated aspect")
     
     return avgAspect
@@ -209,9 +223,15 @@ def avgAspect(inPainting, name, oneValPainting):
 
 #########################################################################################################
 # Final Score Calculation 
-def scoreCalculator(name, numTallHills, numLowValleys, pctRoughArea):
-    finalScore = RasterCalculator([numTallHills, numLowValleys, pctRoughArea], ["x", "y", "z"], "x+y+z")
+def scoreCalculator(name, numTallHills, numLowValleys, pctRoughArea, avgSlope, avgAspect):
+    finalScore = RasterCalculator([numTallHills, numLowValleys, pctRoughArea, avgSlope, avgAspect], ["x", "y", "z", "a", "b"], "x+y+z+a+b")
     finalScore.save(outFolder + "\\" + name + r"_finalScore")
+    
+    tHlV_RoughScore = RasterCalculator([numTallHills, numLowValleys, pctRoughArea], ["x", "y", "z"], "x+y+z")
+    tHlV_RoughScore.save(outFolder + "\\" + name + r"_tHlV_RoughScore")
+    
+    slopeAspectScore = RasterCalculator([avgSlope, avgAspect], ["a", "b"], "a+b")
+    slopeAspectScore.save(outFolder + "\\" + name + r"_slopeAspectScore")
     print(name + " final score calculated")
     
     return finalScore
@@ -223,7 +243,9 @@ def scoreCalculator(name, numTallHills, numLowValleys, pctRoughArea):
 def main():
     numTallHills, numLowValleys = tallHills_lowValleys(pic, name, neighborhood, oneValPainting)
     pctRoughArea = pctRough(pic, name, neighborhood, oneValPainting, areaOVP)
-    scoreCalculator(name, numTallHills, numLowValleys, pctRoughArea)
+    avgSlope = avgSlopeF(pic, name, oneValPainting)
+    avgAspect = avgAspectF(pic, name, oneValPainting)
+    scoreCalculator(name, numTallHills, numLowValleys, pctRoughArea, avgSlope, avgAspect)
 
 
     
@@ -239,10 +261,7 @@ for pic in pics:
     # Calculate area of each individual painting
     areaOVP = ZonalGeometry(oneValPainting, "Value", "AREA")
     
-    avgSlope(pic, name, oneValPainting)
-    avgAspect(pic, name, oneValPainting)
-    
-    #main()
+    main()
     
     
         
