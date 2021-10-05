@@ -8,6 +8,7 @@ import numpy
 import arcpy
 from arcpy.sa import *
 from arcpy.ia.raster_functions import RasterCalculator
+from arcpy.management import ReclassifyField
 
 arcpy.env.overwriteOutput = True
 arcpy.env.workspace = r'in_memory'
@@ -177,6 +178,36 @@ def pctRough(inPainting, name, neighborhood, oneValPainting, areaOVP):
 
 
 #########################################################################################################
+# Identify average slope 
+def avgSlope(inPainting, name, oneValPainting):
+    
+    # Slope is the 
+    slope = Slope(inPainting, "PERCENT_RISE", 1, "PLANAR", "METER")
+    slope.save(outFolder + "\\" + name + r"_slope")
+    
+    avgSlope = ZonalStatistics(oneValPainting, "VALUE", slope, "MEAN")
+    print(name + " calculated slope")
+    
+    return avgSlope
+
+
+
+#########################################################################################################
+# Identify average aspect - direction of downhill slope
+def avgAspect(inPainting, name, oneValPainting):
+    
+    # Slope is the 
+    aspect = Aspect(inPainting, "PLANAR", "METER", "GEODESIC_AZIMUTHS")
+    aspect.save(outFolder + "\\" + name + r"_aspect")
+    
+    avgAspect = ZonalStatistics(oneValPainting, "VALUE", aspect, "MEAN")
+    print(name + " calculated aspect")
+    
+    return avgAspect
+
+
+
+#########################################################################################################
 # Final Score Calculation 
 def scoreCalculator(name, numTallHills, numLowValleys, pctRoughArea):
     finalScore = RasterCalculator([numTallHills, numLowValleys, pctRoughArea], ["x", "y", "z"], "x+y+z")
@@ -208,7 +239,10 @@ for pic in pics:
     # Calculate area of each individual painting
     areaOVP = ZonalGeometry(oneValPainting, "Value", "AREA")
     
-    main()
+    avgSlope(pic, name, oneValPainting)
+    avgAspect(pic, name, oneValPainting)
+    
+    #main()
     
     
         
